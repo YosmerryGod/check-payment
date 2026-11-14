@@ -14,7 +14,7 @@ class DanaNotificationListener : NotificationListenerService() {
 
     // [ADDED] Match the confirmed incoming DANA Bisnis notification format.
     private val incomingPaymentPattern = Regex(
-        """^Rp\\s?[\\d.]+(?:,\\d{2})?\\s+diterima DANA Bisnis\\.?$""",
+        """^Rp\s?([\d.]+)\s+diterima DANA Bisnis\.?$""",
         RegexOption.IGNORE_CASE
     )
 
@@ -32,19 +32,28 @@ class DanaNotificationListener : NotificationListenerService() {
         val body = extras.getCharSequence("android.text")?.toString().orEmpty()
         val lines = extras.getCharSequenceArray("android.textLines")
             ?.map { it.toString() }.orEmpty()
-        val text = (listOf(bigText, body) + lines)
+        val matchedText = (listOf(bigText, body) + lines)
             .map { it.trim() }
             .filter { it.isNotBlank() }
             .distinct()
             .firstOrNull { incomingPaymentPattern.matches(it) }
             ?: return
 
+        // [ADDED] Convert Indonesian thousands separators into an integer rupiah amount.
+        val amount = incomingPaymentPattern.matchEntire(matchedText)
+            ?.groupValues?.get(1)
+            ?.replace(".", "")
+            ?.toLongOrNull()
+            ?: return
+
+        val text = matchedText.take(MAX_TEXT_LENGTH)
         val eventId = sha256("${sbn.packageName}| ${sbn.key}| ${sbn.postTime}|$title|$text")
         val event = PaymentEvent(
             eventId = eventId,
             packageName = sbn.packageName,
             title = title.take(MAX_TITLE_LENGTH),
-            text = text.take(MAX_TEXT_LENGTH),
+            text = text,
+            amount = amount, // [ADDED]
             postedAt = sbn.postTime,
             receivedAt = System.currentTimeMillis(),
             notificationKey = sbn.key
@@ -52,7 +61,7 @@ class DanaNotificationListener : NotificationListenerService() {
 
         MonitorPrefs.setLastEvent(
             applicationContext,
-            "${SimpleDateFormat("dd MMM yyyy HH:mm:ss", Locale("id", "ID")).format(Date())} — $title"
+            "${SimpleDateFormat("dd MMM yyyy HH:mm:ss", Locale("id", "ID")).format(Date())} — $title — $text"
         )
 
         if (MonitorPrefs.wasSent(applicationContext, eventId)) {
