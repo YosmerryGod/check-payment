@@ -10,6 +10,7 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.ScrollView // [ADDED]
 import android.widget.Toast
 
 class MainActivity : Activity() {
@@ -37,7 +38,7 @@ class MainActivity : Activity() {
             setPadding(dp(24), dp(28), dp(24), dp(24))
             layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
+                ViewGroup.LayoutParams.WRAP_CONTENT // [MODIFIED] Allow the full status history to scroll.
             )
         }
 
@@ -109,7 +110,11 @@ class MainActivity : Activity() {
             setTextColor(0xFF6B7280.toInt())
         })
 
-        setContentView(root)
+        // [ADDED] Keep the delivery history accessible on smaller phone screens.
+        setContentView(ScrollView(this).apply {
+            isFillViewport = true
+            addView(root)
+        })
     }
 
     private fun sectionTitle(value: String) = TextView(this).apply {
