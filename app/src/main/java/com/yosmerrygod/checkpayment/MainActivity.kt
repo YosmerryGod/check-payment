@@ -17,6 +17,7 @@ class MainActivity : Activity() {
     private lateinit var keyInput: EditText
     private lateinit var accessStatus: TextView
     private lateinit var lastEventStatus: TextView
+    private lateinit var deliveryHistoryStatus: TextView // [ADDED]
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -67,7 +68,7 @@ class MainActivity : Activity() {
         urlInput = EditText(this).apply {
             hint = "https://api-domain-anda.com"
             textSize = 14f
-            setSingleLine(true) // [MODIFIED]
+            setSingleLine(true)
             inputType = android.text.InputType.TYPE_TEXT_VARIATION_URI
         }
         root.addView(urlInput)
@@ -75,7 +76,7 @@ class MainActivity : Activity() {
         keyInput = EditText(this).apply {
             hint = "API Key"
             textSize = 14f
-            setSingleLine(true) // [MODIFIED]
+            setSingleLine(true)
             inputType = android.text.InputType.TYPE_CLASS_TEXT or
                 android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
         }
@@ -89,9 +90,18 @@ class MainActivity : Activity() {
         root.addView(sectionTitle("Notifikasi terakhir"))
         lastEventStatus = TextView(this).apply {
             textSize = 14f
-            setPadding(0, dp(4), 0, dp(16))
+            setPadding(0, dp(4), 0, dp(12))
         }
         root.addView(lastEventStatus)
+
+        // [ADDED] Show real backend delivery outcomes without requiring Android Logcat.
+        root.addView(sectionTitle("Riwayat pengiriman ke WAGRAM"))
+        deliveryHistoryStatus = TextView(this).apply {
+            textSize = 13f
+            setTextColor(0xFF374151.toInt())
+            setPadding(0, dp(4), 0, dp(16))
+        }
+        root.addView(deliveryHistoryStatus)
 
         root.addView(TextView(this).apply {
             text = "Catatan: notifikasi hanya sinyal awal. Backend harus memverifikasi pembayaran sebelum mengaktifkan Premium."
@@ -137,6 +147,11 @@ class MainActivity : Activity() {
             "BELUM AKTIF — izinkan akses notifikasi"
         }
         lastEventStatus.text = MonitorPrefs.lastEvent(this)
+        // [ADDED] Refresh persisted webhook results whenever the app opens or resumes.
+        deliveryHistoryStatus.text = MonitorPrefs.deliveryHistory(this)
+            .takeIf { it.isNotEmpty() }
+            ?.joinToString("\n\n")
+            ?: "Belum ada hasil pengiriman."
     }
 
     private fun isNotificationAccessEnabled(): Boolean {
