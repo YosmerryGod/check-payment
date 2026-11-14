@@ -67,7 +67,7 @@ class MainActivity : Activity() {
         urlInput = EditText(this).apply {
             hint = "https://api-domain-anda.com"
             textSize = 14f
-            singleLine = true
+            setSingleLine(true) // [MODIFIED]
             inputType = android.text.InputType.TYPE_TEXT_VARIATION_URI
         }
         root.addView(urlInput)
@@ -75,7 +75,7 @@ class MainActivity : Activity() {
         keyInput = EditText(this).apply {
             hint = "API Key"
             textSize = 14f
-            singleLine = true
+            setSingleLine(true) // [MODIFIED]
             inputType = android.text.InputType.TYPE_CLASS_TEXT or
                 android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
         }
