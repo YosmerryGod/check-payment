@@ -12,27 +12,39 @@ import java.util.concurrent.Executors
 class DanaNotificationListener : NotificationListenerService() {
     private val executor = Executors.newSingleThreadExecutor()
 
+    // [ADDED] Match the confirmed incoming DANA Bisnis notification format.
+    private val incomingPaymentPattern = Regex(
+        """^Rp\\s?[\\d.]+(?:,\\d{2})?\\s+diterima DANA Bisnis\\.?$""",
+        RegexOption.IGNORE_CASE
+    )
+
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         if (sbn.packageName != DANA_PACKAGE) return
 
         val extras = sbn.notification.extras
         val title = extras.getCharSequence("android.title")?.toString().orEmpty()
-        val text = buildString {
-            val bigText = extras.getCharSequence("android.bigText")?.toString().orEmpty()
-            val body = extras.getCharSequence("android.text")?.toString().orEmpty()
-            val lines = extras.getCharSequenceArray("android.textLines")
-                ?.joinToString("\n") { it.toString() }.orEmpty()
-            append(listOf(bigText, body, lines).filter { it.isNotBlank() }.distinct().joinToString("\n"))
-        }.take(MAX_TEXT_LENGTH)
 
-        if (title.isBlank() && text.isBlank()) return
+        // [ADDED] Ignore all DANA notifications except incoming-payment notifications.
+        if (!title.equals(INCOMING_PAYMENT_TITLE, ignoreCase = true)) return
+
+        // [MODIFIED] Inspect notification text fields separately and keep only an exact match.
+        val bigText = extras.getCharSequence("android.bigText")?.toString().orEmpty()
+        val body = extras.getCharSequence("android.text")?.toString().orEmpty()
+        val lines = extras.getCharSequenceArray("android.textLines")
+            ?.map { it.toString() }.orEmpty()
+        val text = (listOf(bigText, body) + lines)
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .firstOrNull { incomingPaymentPattern.matches(it) }
+            ?: return
 
         val eventId = sha256("${sbn.packageName}| ${sbn.key}| ${sbn.postTime}|$title|$text")
         val event = PaymentEvent(
             eventId = eventId,
             packageName = sbn.packageName,
             title = title.take(MAX_TITLE_LENGTH),
-            text = text,
+            text = text.take(MAX_TEXT_LENGTH),
             postedAt = sbn.postTime,
             receivedAt = System.currentTimeMillis(),
             notificationKey = sbn.key
@@ -71,6 +83,7 @@ class DanaNotificationListener : NotificationListenerService() {
     companion object {
         private const val TAG = "CheckPayment"
         private const val DANA_PACKAGE = "id.dana"
+        private const val INCOMING_PAYMENT_TITLE = "Pembayaran Masuk" // [ADDED]
         private const val MAX_TITLE_LENGTH = 200
         private const val MAX_TEXT_LENGTH = 2000
     }
