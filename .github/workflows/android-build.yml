@@ -27,3 +27,12 @@ jobs:
 
       - name: Assemble debug APK
         run: gradle assembleDebug
+
+      # [ADDED] Publish the APK as a downloadable GitHub Actions artifact.
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: check-payment-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
