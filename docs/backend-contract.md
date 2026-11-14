@@ -1,12 +1,12 @@
 # Backend integration contract
 
-The Android app posts one JSON event to:
+Check Payment posts matching DANA Business incoming-payment notifications to WAGRAM:
 
-`POST /api/payment-monitor/events`
+`POST /api/miniapp/payment-monitor/events`
 
 ## Authentication
 
-Require the dedicated device secret in `X-API-Key`. Compare secrets in constant time, keep the expected secret in server environment variables, and support immediate key rotation/revocation. Require HTTPS. Apply request-size limits and rate limits.
+Require the dedicated `X-API-Key` secret configured on the WAGRAM server as `DANA_PAYMENT_MONITOR_API_KEY`. Compare secrets in constant time, keep the expected secret in server environment variables, and require HTTPS. The same secret is entered in Check Payment.
 
 ## Request
 
@@ -15,13 +15,14 @@ The Android app only forwards notifications matching all of these conditions:
 - Android package name is `id.dana`.
 - Notification title is `Pembayaran Masuk`.
 - Notification body matches the observed DANA Bisnis format: `Rp5.000 diterima DANA Bisnis.`.
-- The amount is parsed as an integer number of Indonesian rupiah.
+- The amount is parsed as a positive integer number of Indonesian rupiah.
+- Each notification has a SHA-256 event ID used for idempotency.
 
 Example:
 
 ```json
 {
-  "event_id": "sha256-hex",
+  "event_id": "64-character-sha256-hex",
   "type": "incoming_payment",
   "source": "android_notification",
   "package_name": "id.dana",
@@ -35,36 +36,15 @@ Example:
 }
 ```
 
-## Required server behavior
+## WAGRAM automatic order matching
 
-1. Validate authentication and JSON schema.
-2. Accept only the configured DANA package name.
-3. Require `type=incoming_payment` and `currency=IDR`.
-4. Validate that `amount` is a positive integer and enforce a maximum title/text length.
-5. Insert the event using `event_id` as a unique idempotency key.
-6. Return 2xx for a previously accepted duplicate, without processing it twice.
-7. Store the event as `unverified` or `pending_review`.
-8. Notify the admin Telegram chat that a DANA incoming-payment notification was observed.
-9. Never mark an order paid or grant Premium solely because notification text contains an amount or the words "berhasil" / "diterima".
+1. WAGRAM creates a dynamic QRIS order with a unique amount and a 15-minute expiry.
+2. The backend validates the API key, DANA package, incoming-payment event type, title/body format, currency, positive integer amount, and event ID.
+3. The backend atomically matches the amount to one unexpired `pending` Premium order.
+4. A match marks that order `approved` and activates the mapped Premium plan. A duplicate event ID cannot activate it again.
+5. An unmatched amount does not activate any account. The endpoint responds with `matched: false`.
+6. The Mini App polls the order status endpoint and closes the QRIS dialog after showing the success check.
 
-## Suggested event lifecycle
+## Security limitation
 
-`received -> pending_verification -> verified | rejected`
-
-Only an authoritative payment-provider callback, provider API reconciliation, or a documented manual admin verification should transition an order to `verified` and trigger Premium activation.
-
-## Suggested database fields
-
-- `event_id` (unique)
-- `type`
-- `amount`
-- `currency`
-- `package_name`
-- `title`
-- `notification_text`
-- `posted_at`
-- `received_at`
-- `status` (default `unverified`)
-- `created_at`
-
-Avoid storing full notification text longer than operationally necessary. It may contain personal or financial information.
+This integration deliberately uses Android notification detection for automatic activation, but notification text is not a cryptographically signed payment-provider receipt. The API key authenticates the monitor installation, not the actual payment. A compromised device or leaked API key could forge an event. Unique QRIS amounts, 15-minute expiry, strict format checks, and idempotency reduce operational mistakes but do not provide the assurance of an official DANA/provider webhook or transaction-status API. Keep the key secret and use HTTPS.
