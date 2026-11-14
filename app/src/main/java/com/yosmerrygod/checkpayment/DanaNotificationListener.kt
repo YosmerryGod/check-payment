@@ -53,7 +53,7 @@ class DanaNotificationListener : NotificationListenerService() {
             packageName = sbn.packageName,
             title = title.take(MAX_TITLE_LENGTH),
             text = text,
-            amount = amount, // [ADDED]
+            amount = amount,
             postedAt = sbn.postTime,
             receivedAt = System.currentTimeMillis(),
             notificationKey = sbn.key
@@ -71,8 +71,11 @@ class DanaNotificationListener : NotificationListenerService() {
 
         executor.execute {
             val result = PaymentApi.send(applicationContext, event)
+            val timestamp = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
+            val historyLine = "$timestamp — ${result.status} — HTTP ${if (result.httpStatus == 0) "-" else result.httpStatus} — Rp${amount} — ${result.message}"
+            MonitorPrefs.addDeliveryResult(applicationContext, historyLine)
             Log.i(TAG, "${result.message}; event=$eventId")
-            if (result.success) {
+            if (result.shouldMarkSent) {
                 MonitorPrefs.markSent(applicationContext, eventId)
             }
         }
@@ -92,7 +95,7 @@ class DanaNotificationListener : NotificationListenerService() {
     companion object {
         private const val TAG = "CheckPayment"
         private const val DANA_PACKAGE = "id.dana"
-        private const val INCOMING_PAYMENT_TITLE = "Pembayaran Masuk" // [ADDED]
+        private const val INCOMING_PAYMENT_TITLE = "Pembayaran Masuk"
         private const val MAX_TITLE_LENGTH = 200
         private const val MAX_TEXT_LENGTH = 2000
     }
