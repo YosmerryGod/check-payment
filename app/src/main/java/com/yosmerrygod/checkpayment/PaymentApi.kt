@@ -20,7 +20,7 @@ object PaymentApi {
 
         var connection: HttpURLConnection? = null
         return try {
-            val endpoint = URL("${baseUrl.trimEnd('/')}/api/payment-monitor/events")
+            val endpoint = URL("${baseUrl.trimEnd('/')}/api/miniapp/payment-monitor/events")
             connection = (endpoint.openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
                 connectTimeout = 15000
