@@ -1,28 +1,27 @@
-# WAGRAM integration plan
+# WAGRAM integration
 
-This repository contains the Android notification-monitor client. It does not modify the WAGRAM application or its database.
+Check Payment sends incoming DANA Business notification events to the WAGRAM automatic Premium settlement endpoint.
 
-## Required WAGRAM backend work
+## Endpoint
 
-Implement `POST /api/payment-monitor/events` using the contract in [backend-contract.md](backend-contract.md).
+`POST /api/miniapp/payment-monitor/events`
 
-Recommended responsibilities:
+Headers:
 
-- Authenticate the monitor device using a dedicated API key.
-- Persist events in the existing WAGRAM database with a unique `event_id`.
-- Send an admin-only Telegram Bot message when a new notification arrives.
-- Show the event in an admin payment-monitor page or command.
-- Match the event to a pending order only as a candidate match.
-- Require provider reconciliation or explicit admin verification before setting an order to paid.
-- Record the verification source, verifier, and timestamp in an audit trail.
+- `Content-Type: application/json`
+- `X-API-Key: <DANA_PAYMENT_MONITOR_API_KEY>`
+- `Idempotency-Key: <event_id>`
 
-## Why this is not an automatic DANA balance verifier
+The WAGRAM server must have `DANA_PAYMENT_MONITOR_API_KEY` configured. Use the same long random secret in the Check Payment API Key field. The backend URL in the Android app is the public HTTPS origin only.
 
-Android notification text is not a trusted payment-provider API. The notification may be delayed, duplicated, incomplete, or imitated. Amount matching is useful for surfacing a likely order, but it is not sufficient proof to deliver paid digital goods.
+## Automatic flow
 
-## Values to configure on Android
+- WAGRAM creates a dynamic QRIS order with a unique IDR amount and 15-minute expiry.
+- Check Payment only forwards the matching DANA Business incoming-payment notification format.
+- WAGRAM matches the amount to an unexpired pending order and atomically activates the associated Premium membership.
+- The WAGRAM Mini App polls `GET /api/miniapp/premium/orders/:orderId/status`; it shows a success check and returns to Chats when the order is approved.
+- Event IDs are idempotent. An unmatched amount does not activate Premium.
 
-- Backend URL: public HTTPS base URL for WAGRAM.
-- API Key: a unique secret generated for this monitor installation and stored as a server-side hash where practical.
+## Important security limitation
 
-Do not put Telegram bot tokens, database credentials, or the WAGRAM server's master secrets in the Android app.
+The Android notification is not cryptographically signed by DANA. The API key authenticates the monitor installation, not the payment itself. This flow is suitable for controlled testing and lower-risk use, but it is weaker than an official DANA/provider webhook or transaction-status API. Keep the API key secret, use HTTPS, and monitor for unexpected activations.
