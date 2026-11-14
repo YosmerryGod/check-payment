@@ -8,6 +8,7 @@ object MonitorPrefs {
     private const val KEY_API_KEY = "backend_api_key"
     private const val KEY_LAST_EVENT = "last_event"
     private const val KEY_SENT_IDS = "sent_event_ids"
+    private const val KEY_DELIVERY_HISTORY = "delivery_history" // [ADDED]
 
     private fun prefs(context: Context) =
         context.getSharedPreferences(FILE_NAME, Context.MODE_PRIVATE)
@@ -30,6 +31,21 @@ object MonitorPrefs {
 
     fun setLastEvent(context: Context, value: String) {
         prefs(context).edit().putString(KEY_LAST_EVENT, value).apply()
+    }
+
+    // [ADDED] Keep a compact local delivery history visible inside the app.
+    fun deliveryHistory(context: Context): List<String> =
+        prefs(context).getString(KEY_DELIVERY_HISTORY, "").orEmpty()
+            .lines().filter { it.isNotBlank() }
+
+    // [ADDED] Store newest results first and retain only the latest 10 events.
+    @Synchronized
+    fun addDeliveryResult(context: Context, value: String) {
+        val current = deliveryHistory(context)
+        val updated = (listOf(value) + current).take(10)
+        prefs(context).edit()
+            .putString(KEY_DELIVERY_HISTORY, updated.joinToString("\n"))
+            .apply()
     }
 
     @Synchronized
